@@ -1,0 +1,22 @@
+gcc -std=c99 -o course_sched course_sched.c
+./course_sched ./in/everytime0.csv
+Computer Programming
+Digital Systems
+Discrete Mathematics
+Data Structures
+Computer Architecture
+Operating Systems
+./course_sched ./in/everytime1.csv
+Digital Systems
+Discrete Mathematics
+Computer Programming
+Data Structures
+Computer Architecture
+Operating Systems
+./course_sched ./in/everytime2.csv
+Digital Systems
+Computer Programming
+Discrete Mathematics
+Data Structures
+Computer Architecture
+Operating Systems
