@@ -235,6 +235,34 @@ int main() {
 			if(realpath(argv[1], pbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
 			else if(chdir(pbuf) == -1) printf("그런 디렉토리가 존재하지 않거나 잘못되었습니다.\n");
 		}
+		else if (strcmp(argv[0], "ready-to-score") == 0 || strcmp(argv[0], "auto-grade-pa0") == 0 || strcmp(argv[0], "report-grade") == 0) { // 현재가 프로젝트 경로라는 가정하에 진행됨
+			char pbuf[512], qbuf[512];
+			char str[512];
+			str[0] = '\0';
+			strcpy(str, "./scripts/");
+			strcat(str, argv[0]);
+			strcat(str, ".py");
+			if(realpath(str, pbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
+			else if(realpath("./2019-1-PA0/", qbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
+			else {
+				pid_t pid = fork();
+				int status;
+
+				if(pid == -1) {
+					fprintf(stderr, "somethings wrong\n");
+					exit(EXIT_FAILURE);
+				}
+				else if(pid == 0) {
+					execlp("python3", "python3", pbuf, qbuf, "");
+					exit(EXIT_FAILURE);
+				}
+				else {
+					wait(&status);
+					/*if(status != 0)
+						printf("실행하지 못했습니다.\n");*/
+				}
+			}
+		}
 		else if (argv[0][0] != '.' && argv[0][0] != '/' && argv[0][0] != '~') {
 			int num;
 
@@ -282,8 +310,8 @@ int main() {
 				exit(EXIT_FAILURE);
 			} else {
 				wait(&status);
-				if(status != 0)
-					printf("실행하지 못 했습니다.\n");
+				/*if(status != 0)
+					printf("실행하지 못 했습니다.\n");*/
 				if(io != -1) argv[num] = tmp;
 			}
 		}
@@ -348,8 +376,8 @@ int main() {
 				exit(EXIT_FAILURE);
 			} else {
 				wait(&status);
-				if(status != 0)
-					printf("실행하지 못 했습니다.\n");
+				/*if(status != 0)
+					printf("실행하지 못 했습니다.\n");*/
 				if(io != -1) argv[num] = tmp;
 			}
 		}
