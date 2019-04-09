@@ -13,28 +13,27 @@ char **get_argv(char *buf) {
 	char **argv = (char **)malloc(sizeof(char *));
 	char *k;
 
-	int quto = 0;
+	int quoto = 0;
 	for(k = buf; *k != '\0'; k++) {
 		if(*k == ' ' || *k == '\n' || *k =='\"') {
 			if(*k == '\"' && (k == buf || *(k - 1) != '\\')) {
-				if(quto == 0) {
+				if(quoto == 0) {
 					len++;
-					quto = 1;
+					quoto = 1;
 					continue;
 				}
 				else {
 					len++;
-					quto = 0;
+					quoto = 0;
 					continue;
 				}
 			}
-
-			if(*k== '\"' && (k != buf && *(k - 1) == '\\')) {
+			else if(*k== '\"' && (k != buf && *(k - 1) == '\\')) {
 				len++;
 				continue;
 			}
 
-			if(*k == ' ' && quto == 1) {
+			if(*k == ' ' && quoto == 1) {
 				len++;
 				continue;
 			}
@@ -85,6 +84,94 @@ char **get_argv(char *buf) {
 	return argv;
 }
 
+char escape[256];
+
+void convert_string(char **buf) {
+	int size = 0;
+	int backslash = 0;
+	int quoto = 0;
+	int vari = 0;
+	int varilen = 0;
+
+	int len = strlen(*buf);
+	int capacity = len;
+
+	char *tmp = (char *)malloc(sizeof(char) * (len + 1));
+	char *k;
+
+	for(k = *buf; *k != '\0'; k++) {
+		if(backslash == 1) {
+			if(!quoto) tmp[size++] = *k;
+			else if(*k == '0') {
+				tmp[size++] = '\\';
+				tmp[size++] = '0';
+			}
+			else if(escape[*k] == 0) tmp[size++] = *k;
+			else tmp[size++] = escape[*k];
+			backslash = 0;
+		}
+		else if(*k == '\\') backslash = 1;
+		else if(*k != '\"') {
+			if(vari) {
+				varilen++;
+				continue;
+			}
+			if(quoto || *k != '$') tmp[size++] = *k;
+			else {
+				vari = 1;
+				varilen = 0;
+			}
+		}
+		else {
+			quoto = 1 - quoto;
+			if(vari) {
+				vari = 0;
+				char sbuf[128];
+				sbuf[varilen] = '\0';
+				strncpy(sbuf, k - varilen, varilen);
+				char *s = getenv(sbuf);
+				if(s != NULL) {
+					int slen = strlen(s);
+					if(size + slen > capacity) {
+						char *ttmp = (char *)malloc(sizeof(char) * (capacity + slen + 1));
+						capacity += slen;
+						for(int i = 0; i < size; i++) ttmp[i] = tmp[i];
+						free(tmp);
+						tmp = ttmp;
+					}
+					tmp[size] = '\0';
+					strcat(tmp, s);
+					size += slen;
+				}
+			}
+		}
+	}
+	if(vari) {
+		vari = 0;
+		char sbuf[128];
+		sbuf[varilen] = '\0';
+		strncpy(sbuf, k - varilen, varilen);
+		char *s = getenv(sbuf);
+		if(s != NULL) {
+			int slen = strlen(s);
+			if(size + slen > capacity) {
+				char *ttmp = (char *)malloc(sizeof(char) * (capacity + slen + 1));
+				capacity += slen;
+				for(int i = 0; i < size; i++) ttmp[i] = tmp[i];
+				free(tmp);
+				tmp = ttmp;
+			}
+			tmp[size] = '\0';
+			strcat(tmp, s);
+			size += slen;
+		}
+	}
+	tmp[size] = '\0';
+	
+	free(*buf);
+	*buf = tmp;
+}
+
 void invertHome(char **buf) {
 	char *home = getenv("HOME");
 	int homelen = strlen(home);
@@ -112,22 +199,76 @@ void invertHome(char **buf) {
 	(*buf) = tmp;
 }
 
+void clear(char ***x) {
+	for(char **k = *x; *k != NULL; k++) free(*k);
+	free(*x);
+}
+
 int main() {
+	escape['a'] = '\a';
+	escape['b'] = '\b';
+	escape['e'] = '\e';
+	escape['f'] = '\f';
+	escape['n'] = '\n';
+	escape['r'] = '\r';
+	escape['t'] = '\t';
+	escape['v'] = '\v';
+	escape['\\'] = '\\';
+	escape['\''] = '\'';
+	escape['\?'] = '\?';
+
 	char buf[4096];
 	while (fgets(buf, 4096, stdin)) {
 		char **argv = get_argv(buf);
 
-		for(char **k = argv; *k != NULL; k++) printf("%s\n", *k);
-
+		for(int i = 0; argv[i] != NULL; i++) {
+			convert_string(argv + i);
+		}
 		if (strcmp(argv[0], "cd") == 0) {
-			if(argv[1] == NULL) continue;
+			if(argv[1] == NULL) {
+				clear(&argv);
+				continue;
+			}
 			invertHome(argv + 1);
 
 			char pbuf[512];
 			if(realpath(argv[1], pbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
 			else if(chdir(pbuf) == -1) printf("그런 디렉토리가 존재하지 않거나 잘못되었습니다.\n");
 		}
-		else if (argv[0][0] != '.' && argv[0][0] != '/') {
+		else if (argv[0][0] != '.' && argv[0][0] != '/' && argv[0][0] != '~') {
+			int num;
+
+			int io = -1;
+			char *tmp;
+			for(num = 0; argv[num] != NULL; num++) {
+				if(strcmp(argv[num], "<") == 0) io = 0;
+				if(strcmp(argv[num], ">") == 0) io = 1;
+				if(io != -1) {
+					tmp = argv[num];
+					argv[num] = NULL;
+					break;
+				}
+			}
+			if(io != -1 && argv[num + 1] == NULL) {
+				printf("인자가 부족합니다.\n");
+				argv[num] = tmp;
+				clear(&argv);
+				continue;
+			}
+			if(io != -1 && (argv[num + 1][0] == '/' || argv[num + 1][0] == '.' || argv[num + 1][0] == '~')) {
+				invertHome(argv + num + 1);
+				char pbuf[512];
+				if(realpath(argv[num + 1], pbuf) == NULL) {
+					printf("디렉토리가 잘못되었습니다.\n");
+					argv[num] = tmp;
+					clear(&argv);
+					continue;
+				}
+				free(argv[num + 1]);
+				argv[num + 1] = (char *)malloc(sizeof(char) * 512);
+				strcpy(argv[num + 1], pbuf);
+			}
+
 			pid_t pid = fork();
 			int status;
 
@@ -135,16 +276,84 @@ int main() {
 				fprintf(stderr, "Error occured during process creation\n");
 				exit(EXIT_FAILURE);
 			} else if (pid == 0) {
+				if(io == 1) freopen(argv[num + 1], "w", stdout);
+				if(io == 0) freopen(argv[num + 1], "r", stdin);
 				execvp(argv[0], argv);
+				exit(EXIT_FAILURE);
 			} else {
 				wait(&status);
+				if(status != 0)
+					printf("실행하지 못 했습니다.\n");
+				if(io != -1) argv[num] = tmp;
 			}
 		}
 		else {
-		}
+			invertHome(argv);
 
-		for(char **k = argv; *k != NULL; k++) free(*k);
-		free(argv);
+			char pbuf[512];
+			if(realpath(argv[0], pbuf) == NULL) {
+				printf("디렉토리가 잘못되었습니다.\n");
+				clear(&argv);
+				continue;
+			}
+
+
+			free(argv[0]);
+			argv[0] = (char *)malloc(sizeof(char) * 512);
+			strcpy(argv[0], pbuf);
+
+			int num;
+
+			int io = -1;
+			char *tmp;
+			for(num = 0; argv[num] != NULL; num++) {
+				if(strcmp(argv[num], "<") == 0) io = 0;
+				if(strcmp(argv[num], ">") == 0) io = 1;
+				if(io != -1) {
+					tmp = argv[num];
+					argv[num] = NULL;
+					break;
+				}
+			}
+			if(io != -1 && argv[num + 1] == NULL) {
+				printf("인자가 부족합니다.\n");
+				argv[num] = tmp;
+				clear(&argv);
+				continue;
+			}
+			if(io != -1 && (argv[num + 1][0] == '/' || argv[num + 1][0] == '.' || argv[num + 1][0] == '~')) {
+				invertHome(argv + num + 1);
+				char pbuf[512];
+				if(realpath(argv[num + 1], pbuf) == NULL) {
+					printf("디렉토리가 잘못되었습니다.\n");
+					argv[num] = tmp;
+					clear(&argv);
+					continue;
+				}
+				free(argv[num + 1]);
+				argv[num + 1] = (char *)malloc(sizeof(char) * 512);
+				strcpy(argv[num + 1], pbuf);
+			}
+
+			pid_t pid = fork();
+			int status;
+
+			if (pid == -1) {
+				fprintf(stderr, "Error occured during process creation\n");
+				exit(EXIT_FAILURE);
+			} else if (pid == 0) {
+				if(io == 1) freopen(argv[num + 1], "w", stdout);
+				if(io == 0) freopen(argv[num + 1], "r", stdin);
+				execvp(argv[0], argv);
+				exit(EXIT_FAILURE);
+			} else {
+				wait(&status);
+				if(status != 0)
+					printf("실행하지 못 했습니다.\n");
+				if(io != -1) argv[num] = tmp;
+			}
+		}
+		clear(&argv);
 	}
 
 	return 0;
