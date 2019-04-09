@@ -17,5 +17,5 @@ for filename in files_in_root_dir:
     result = subprocess.run(command)
 
     if result.returncode != 0:
-        print('Compile error')
+        print('Compile error', ' ', filename)
 
