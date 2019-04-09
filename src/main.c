@@ -242,8 +242,9 @@ int main() {
 			strcpy(str, "./scripts/");
 			strcat(str, argv[0]);
 			strcat(str, ".py");
-			if(realpath(str, pbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
-			else if(realpath("./2019-1-PA0/", qbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
+			if(argv[1] == NULL) printf("인자가 부족합니다.\n");
+			else if(realpath(str, pbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
+			else if(realpath(argv[1], qbuf) == NULL) printf("디렉토리가 잘못되었습니다.\n");
 			else {
 				pid_t pid = fork();
 				int status;
